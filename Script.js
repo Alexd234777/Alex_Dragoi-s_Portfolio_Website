@@ -11,7 +11,7 @@ document.getElementById("contactForm").addEventListener("submit", async (event) 
     }
 
     try {
-        const response = await fetch("https://alex-dragoi-s-portfolio-website.onrender.com/send-message", {
+        const response = await fetch("/send-message", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
