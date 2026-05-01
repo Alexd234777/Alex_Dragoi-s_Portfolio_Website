@@ -16,10 +16,14 @@ Open `http://localhost:3000`.
 
 Recommended settings:
 
-- Build command: `npm ci --omit=dev`
+- Plan: Free
+- Public URL: use the generated `onrender.com` URL until you buy a custom domain
+- Build command: `npm ci`
 - Start command: `npm start`
-- Node version: pinned with `.node-version`
+- Node version: Render's default Node 18+ runtime is fine
 - Environment: `NODE_ENV=production`
+
+If the existing Render service still has an old manual start command, set it to either `npm start` or `node server.js`. A compatibility `Server.js` entrypoint is also included for older case-sensitive Render settings.
 
 ## Contact form environment variables
 
