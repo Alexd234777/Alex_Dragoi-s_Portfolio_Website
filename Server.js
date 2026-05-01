@@ -10,8 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const publicDir = path.join(__dirname, "public");
 const isProduction = process.env.NODE_ENV === "production";
+const WEB3FORMS_ORIGIN = "https://api.web3forms.com";
 const WEB3FORMS_ENDPOINT = "https://api.web3forms.com/submit";
 const web3FormsAccessKey = (process.env.WEB3FORMS_ACCESS_KEY || "").trim();
+const hasWeb3Forms = Boolean(web3FormsAccessKey);
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -26,8 +28,8 @@ app.use((req, res, next) => {
     res.setHeader("Content-Security-Policy", [
         "default-src 'self'",
         "base-uri 'self'",
-        "connect-src 'self'",
-        "form-action 'self'",
+        `connect-src 'self' ${WEB3FORMS_ORIGIN}`,
+        `form-action 'self' ${WEB3FORMS_ORIGIN}`,
         "frame-ancestors 'none'",
         "img-src 'self' data:",
         "object-src 'none'",
@@ -62,6 +64,15 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok" });
+});
+
+app.get("/api/contact-config", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json({
+        provider: hasWeb3Forms ? "web3forms" : "server",
+        web3FormsEndpoint: hasWeb3Forms ? WEB3FORMS_ENDPOINT : "",
+        web3FormsAccessKey: hasWeb3Forms ? web3FormsAccessKey : ""
+    });
 });
 
 const contactLimiter = rateLimit({
@@ -126,7 +137,6 @@ function createMailer() {
 
 const mailer = createMailer();
 const mailUser = (process.env.GMAIL_USER || "").trim();
-const hasWeb3Forms = Boolean(web3FormsAccessKey);
 
 function escapeHtml(value = "") {
     return String(value).replace(/[&<>"']/g, (character) => ({
@@ -199,68 +209,7 @@ function buildContactEmail(value) {
     };
 }
 
-function buildWeb3FormsPayload(value) {
-    return {
-        access_key: web3FormsAccessKey,
-        subject: getContactSubject(value),
-        from_name: "Alex Dragoi Portfolio",
-        name: value.name,
-        email: value.email,
-        replyto: value.email,
-        company: value.company || "Not provided",
-        project_type: value.projectType || "Not provided",
-        budget: value.budget || "Not provided",
-        timeline: value.timeline || "Not provided",
-        source: "Portfolio website",
-        message: value.message
-    };
-}
-
-async function sendWeb3FormsEmail(value) {
-    if (typeof fetch !== "function") {
-        const error = new Error("The server Node version does not support fetch.");
-        error.code = "FETCH_UNAVAILABLE";
-        throw error;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), getSendTimeoutMs());
-
-    try {
-        const response = await fetch(WEB3FORMS_ENDPOINT, {
-            method: "POST",
-            headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(buildWeb3FormsPayload(value)),
-            signal: controller.signal
-        });
-
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok || result.success !== true) {
-            const error = new Error(result.message || `Web3Forms returned HTTP ${response.status}.`);
-            error.code = "WEB3FORMS_ERROR";
-            error.responseCode = response.status;
-            throw error;
-        }
-
-        return result;
-    } catch (sendError) {
-        if (sendError.name === "AbortError") {
-            const timeoutError = new Error("Web3Forms delivery timed out.");
-            timeoutError.code = "EMAIL_TIMEOUT";
-            throw timeoutError;
-        }
-
-        throw sendError;
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
-function sendGmailEmail(value) {
+function sendContactEmail(value) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             const timeoutError = new Error("Email delivery timed out.");
@@ -280,14 +229,6 @@ function sendGmailEmail(value) {
     });
 }
 
-function sendContactEmail(value) {
-    if (hasWeb3Forms) {
-        return sendWeb3FormsEmail(value);
-    }
-
-    return sendGmailEmail(value);
-}
-
 app.post("/api/contact", contactLimiter, async (req, res) => {
     const { error, value } = contactSchema.validate(req.body, {
         abortEarly: false,
@@ -302,12 +243,12 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
         return res.status(200).json({ message: "Thanks, your message was received." });
     }
 
-    if (!hasWeb3Forms && !mailer) {
+    if (!mailer) {
         return sendClientError(
             req,
             res,
             503,
-            "Email is not configured yet. Please set WEB3FORMS_ACCESS_KEY on the server."
+            "Email is not configured for server-side sending. Please use the contact form in a browser."
         );
     }
 
@@ -321,7 +262,7 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
         return res.status(200).json({ message: "Thanks, your message was sent." });
     } catch (sendError) {
         console.error("Contact email failed:", {
-            provider: hasWeb3Forms ? "web3forms" : "gmail",
+            provider: "gmail",
             code: sendError.code,
             command: sendError.command,
             responseCode: sendError.responseCode,
