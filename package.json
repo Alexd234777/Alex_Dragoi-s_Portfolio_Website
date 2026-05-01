@@ -2,11 +2,11 @@
     "name": "alex-dragoi-portfolio",
     "version": "1.0.0",
     "description": "Fast portfolio website with a hardened Express contact form.",
-    "main": "server.js",
+    "main": "Server.js",
     "scripts": {
-        "start": "node server.js",
-        "dev": "nodemon server.js",
-        "check": "node --check server.js && node --check public/script.js"
+        "start": "node Server.js",
+        "dev": "nodemon Server.js",
+        "check": "node --check Server.js && node --check public/script.js"
     },
     "keywords": [
         "express",
