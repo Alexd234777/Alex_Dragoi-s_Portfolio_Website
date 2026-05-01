@@ -115,6 +115,9 @@ function createMailer() {
         pool: true,
         maxConnections: 2,
         maxMessages: 20,
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 12000,
         auth: { user, pass }
     });
 }
@@ -179,17 +182,29 @@ function buildContactEmail(value) {
     };
 }
 
-function queueContactEmail(value) {
-    setImmediate(async () => {
-        try {
-            await mailer.sendMail(buildContactEmail(value));
-        } catch (sendError) {
-            console.error("Contact email failed:", sendError.message);
-        }
+function sendContactEmail(value) {
+    const timeoutMs = Number(process.env.CONTACT_SEND_TIMEOUT_MS || 10000);
+
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            const timeoutError = new Error("Email delivery timed out.");
+            timeoutError.code = "EMAIL_TIMEOUT";
+            reject(timeoutError);
+        }, timeoutMs);
+
+        mailer.sendMail(buildContactEmail(value))
+            .then((result) => {
+                clearTimeout(timer);
+                resolve(result);
+            })
+            .catch((sendError) => {
+                clearTimeout(timer);
+                reject(sendError);
+            });
     });
 }
 
-app.post("/api/contact", contactLimiter, (req, res) => {
+app.post("/api/contact", contactLimiter, async (req, res) => {
     const { error, value } = contactSchema.validate(req.body, {
         abortEarly: false,
         stripUnknown: true
@@ -212,13 +227,29 @@ app.post("/api/contact", contactLimiter, (req, res) => {
         );
     }
 
-    queueContactEmail(value);
+    try {
+        await sendContactEmail(value);
 
-    if (wantsHtml(req)) {
-        return res.redirect(303, "/confirmation.html");
+        if (wantsHtml(req)) {
+            return res.redirect(303, "/confirmation.html");
+        }
+
+        return res.status(200).json({ message: "Thanks, your message was sent." });
+    } catch (sendError) {
+        console.error("Contact email failed:", {
+            code: sendError.code,
+            command: sendError.command,
+            responseCode: sendError.responseCode,
+            message: sendError.message
+        });
+
+        return sendClientError(
+            req,
+            res,
+            502,
+            "Email delivery failed. Please check the contact email settings and try again."
+        );
     }
-
-    return res.status(202).json({ message: "Thanks, your message was received. I will follow up soon." });
 });
 
 app.use((req, res) => {
