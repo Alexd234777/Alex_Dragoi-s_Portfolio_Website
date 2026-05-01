@@ -103,8 +103,8 @@ const contactSchema = Joi.object({
 });
 
 function createMailer() {
-    const user = process.env.GMAIL_USER;
-    const pass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+    const user = (process.env.GMAIL_USER || "").trim();
+    const pass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || "").replace(/\s/g, "");
 
     if (!user || !pass) {
         return null;
@@ -123,6 +123,7 @@ function createMailer() {
 }
 
 const mailer = createMailer();
+const mailUser = (process.env.GMAIL_USER || "").trim();
 
 function escapeHtml(value = "") {
     return String(value).replace(/[&<>"']/g, (character) => ({
@@ -163,7 +164,7 @@ function buildContactEmail(value) {
     ].join("\n");
 
     return {
-        from: `"Alex Dragoi Portfolio" <${process.env.GMAIL_USER}>`,
+        from: `"Alex Dragoi Portfolio" <${mailUser}>`,
         to: recipient,
         replyTo: value.email,
         subject,
