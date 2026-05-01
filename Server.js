@@ -144,7 +144,52 @@ function sendClientError(req, res, status, message) {
     return res.status(status).json({ message });
 }
 
-app.post("/api/contact", contactLimiter, async (req, res) => {
+function buildContactEmail(value) {
+    const recipient = process.env.CONTACT_TO || process.env.GMAIL_USER;
+    const subject = `Portfolio inquiry from ${value.name}`;
+    const details = [
+        `Name: ${value.name}`,
+        `Email: ${value.email}`,
+        `Company: ${value.company || "Not provided"}`,
+        `Project type: ${value.projectType || "Not provided"}`,
+        `Budget: ${value.budget || "Not provided"}`,
+        `Timeline: ${value.timeline || "Not provided"}`,
+        "",
+        "Message:",
+        value.message
+    ].join("\n");
+
+    return {
+        from: `"Alex Dragoi Portfolio" <${process.env.GMAIL_USER}>`,
+        to: recipient,
+        replyTo: value.email,
+        subject,
+        text: details,
+        html: `
+            <h2>New portfolio inquiry</h2>
+            <p><strong>Name:</strong> ${escapeHtml(value.name)}</p>
+            <p><strong>Email:</strong> ${escapeHtml(value.email)}</p>
+            <p><strong>Company:</strong> ${escapeHtml(value.company || "Not provided")}</p>
+            <p><strong>Project type:</strong> ${escapeHtml(value.projectType || "Not provided")}</p>
+            <p><strong>Budget:</strong> ${escapeHtml(value.budget || "Not provided")}</p>
+            <p><strong>Timeline:</strong> ${escapeHtml(value.timeline || "Not provided")}</p>
+            <p><strong>Message:</strong></p>
+            <p>${escapeHtml(value.message).replace(/\n/g, "<br>")}</p>
+        `
+    };
+}
+
+function queueContactEmail(value) {
+    setImmediate(async () => {
+        try {
+            await mailer.sendMail(buildContactEmail(value));
+        } catch (sendError) {
+            console.error("Contact email failed:", sendError.message);
+        }
+    });
+}
+
+app.post("/api/contact", contactLimiter, (req, res) => {
     const { error, value } = contactSchema.validate(req.body, {
         abortEarly: false,
         stripUnknown: true
@@ -167,49 +212,13 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
         );
     }
 
-    const recipient = process.env.CONTACT_TO || process.env.GMAIL_USER;
-    const subject = `Portfolio inquiry from ${value.name}`;
-    const details = [
-        `Name: ${value.name}`,
-        `Email: ${value.email}`,
-        `Company: ${value.company || "Not provided"}`,
-        `Project type: ${value.projectType || "Not provided"}`,
-        `Budget: ${value.budget || "Not provided"}`,
-        `Timeline: ${value.timeline || "Not provided"}`,
-        "",
-        "Message:",
-        value.message
-    ].join("\n");
+    queueContactEmail(value);
 
-    try {
-        await mailer.sendMail({
-            from: `"Alex Dragoi Portfolio" <${process.env.GMAIL_USER}>`,
-            to: recipient,
-            replyTo: value.email,
-            subject,
-            text: details,
-            html: `
-                <h2>New portfolio inquiry</h2>
-                <p><strong>Name:</strong> ${escapeHtml(value.name)}</p>
-                <p><strong>Email:</strong> ${escapeHtml(value.email)}</p>
-                <p><strong>Company:</strong> ${escapeHtml(value.company || "Not provided")}</p>
-                <p><strong>Project type:</strong> ${escapeHtml(value.projectType || "Not provided")}</p>
-                <p><strong>Budget:</strong> ${escapeHtml(value.budget || "Not provided")}</p>
-                <p><strong>Timeline:</strong> ${escapeHtml(value.timeline || "Not provided")}</p>
-                <p><strong>Message:</strong></p>
-                <p>${escapeHtml(value.message).replace(/\n/g, "<br>")}</p>
-            `
-        });
-
-        if (wantsHtml(req)) {
-            return res.redirect(303, "/confirmation.html");
-        }
-
-        return res.status(200).json({ message: "Thanks, your message was sent." });
-    } catch (sendError) {
-        console.error("Contact email failed:", sendError.message);
-        return sendClientError(req, res, 502, "The message could not be sent right now. Please try again later.");
+    if (wantsHtml(req)) {
+        return res.redirect(303, "/confirmation.html");
     }
+
+    return res.status(202).json({ message: "Thanks, your message was received. I will follow up soon." });
 });
 
 app.use((req, res) => {

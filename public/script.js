@@ -37,7 +37,25 @@ function getPayload(form) {
     return Object.fromEntries(new FormData(form).entries());
 }
 
+function warmServer() {
+    fetch("/health", {
+        cache: "no-store",
+        headers: {
+            "Accept": "application/json"
+        }
+    }).catch(() => {});
+}
+
 if (contactForm) {
+    if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(warmServer, { timeout: 3000 });
+    } else {
+        window.setTimeout(warmServer, 1200);
+    }
+
+    contactForm.addEventListener("focusin", warmServer, { once: true });
+    contactForm.addEventListener("pointerenter", warmServer, { once: true });
+
     contactForm.addEventListener("submit", async (event) => {
         event.preventDefault();
 
@@ -48,7 +66,7 @@ if (contactForm) {
 
         submitButton.disabled = true;
         submitButton.textContent = "Sending...";
-        setStatus("Sending your message...", "loading");
+        setStatus("Sending your inquiry...", "loading");
 
         try {
             const response = await fetch("/api/contact", {
