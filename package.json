@@ -1,32 +1,30 @@
 {
-    "name": "contact-form-app",
+    "name": "alex-dragoi-portfolio",
     "version": "1.0.0",
-    "description": "A frontend-backend application with a contact form and email functionality.",
+    "description": "Fast portfolio website with a hardened Express contact form.",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "nodemon server.js"
+        "dev": "nodemon server.js",
+        "check": "node --check server.js && node --check public/script.js"
     },
     "keywords": [
-        "contact-form",
-        "nodejs",
         "express",
-        "frontend-backend"
+        "contact-form",
+        "performance",
+        "portfolio"
     ],
-    "author": "Your Name",
+    "author": "Alex Dragoi",
     "license": "MIT",
+    "engines": {
+        "node": ">=18 <23"
+    },
     "dependencies": {
-        "body-parser": "^1.20.3",
-        "cors": "^2.8.5",
         "dotenv": "^16.4.7",
         "express": "^4.21.2",
         "express-rate-limit": "^7.5.0",
-        "googleapis": "^144.0.0",
         "joi": "^17.13.3",
-        "mongoose": "^8.9.2",
-        "nodemailer": "^6.9.16",
-        "path": "^0.12.7",
-        "winston": "^3.17.0"
+        "nodemailer": "^6.9.16"
     },
     "devDependencies": {
         "nodemon": "^3.0.3"
